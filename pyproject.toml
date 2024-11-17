@@ -1,0 +1,25 @@
+[tool.poetry]
+name = "adhd-classification"
+version = "0.1.0"
+description = "SVM cross-validation using features selected via ANOVA test"
+authors = ["Christopher Hagler <cwh0020@auburn.edu>"]
+license = "MIT"
+readme = "README.md"
+keywords = ["SVM", "cross-validation", "feature selection", "ANOVA", "machine learning"]
+
+[tool.poetry.dependencies]
+python = "^3.11.6"
+numpy = "^2.1.3"
+scipy = "^1.14.1"
+scikit-learn = "^1.5.2"
+matplotlib = "^3.7.0"
+
+[tool.poetry.dev-dependencies]
+pytest = "^8.3.3"
+
+[tool.poetry.scripts]
+classification = "src.main:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
