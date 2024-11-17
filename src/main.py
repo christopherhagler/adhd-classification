@@ -62,7 +62,7 @@ def main():
     features_class2 = features_class2[:, :min_features]
 
     # Define the range of feature numbers to test
-    feature_numbers = range(1, min_features + 10)
+    feature_numbers = range(1, min_features + 1, 10)
     hit_rates = []
 
     # Run SVM cross-validation for each feature number and record hit rate
