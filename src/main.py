@@ -2,7 +2,6 @@ import numpy as np
 import scipy.io
 from scipy.signal import welch
 import matplotlib.pyplot as plt
-
 from svm import multi_svm_cv_ttest
 
 HEALTHY = "healthy"
@@ -25,37 +24,27 @@ def load_data() -> dict[str, np.ndarray]:
     }
 
 
-def psd(vector):
+def mean_psd(vector):
     time_series = vector.flatten()
-    return welch(time_series, fs=0.5, nperseg=55)
-
-
-def plot(frequencies, pxx):
-    plt.figure(figsize=(10, 6))
-    plt.plot(frequencies, pxx, color='red', lw=2)
-    plt.xlabel('Frequency (Hz)')
-    plt.ylabel('Power Spectral Density (PSD)')
-    plt.title('Power Spectral Density using Welch\'s Method')
-    plt.grid(True)
-    plt.show()
+    _, pxx = welch(time_series, fs=0.5, nperseg=55)
+    return np.mean(pxx)
 
 
 def calculate_psd_features():
-    group_psd_values = {}
+    features = {}
 
     data: dict[str, np.ndarray] = load_data()
     for classification, group in data.items():
-        group_features = []
+        group_psd_values = []
         for subject in group.flatten():
-            psd_region_values = []
+            average_region_values = []
             for region in subject.T:
-                frequencies, pxx = psd(region)
-                psd_region_values.append(pxx)
+                average_region_values.append(mean_psd(region))
 
-            group_features.append(np.array(psd_region_values).T)
-        group_psd_values[classification] = group_features
+            group_psd_values.append(average_region_values)
+        features[classification] = np.array(group_psd_values)
 
-    return group_psd_values
+    return features
 
 
 def main():
@@ -72,12 +61,24 @@ def main():
     features_class1 = features_class1[:, :min_features]
     features_class2 = features_class2[:, :min_features]
 
-    # Define the number of top features to select
-    feature_number = 100  # Adjust as needed, must be <= min_features
+    # Define the range of feature numbers to test
+    feature_numbers = range(1, min_features + 10)
+    hit_rates = []
 
-    # Run the SVM cross-validation
-    hit_rate = multi_svm_cv_ttest(features_class0, features_class1, features_class2, feature_number)
-    print(f"Hit Rate: {hit_rate * 100:.2f}%")
+    # Run SVM cross-validation for each feature number and record hit rate
+    for feature_number in feature_numbers:
+        hit_rate = multi_svm_cv_ttest(features_class0, features_class1, features_class2, feature_number)
+        hit_rates.append(hit_rate * 100)  # Store hit rate as a percentage
+        print(f"Feature number: {feature_number}, Hit Rate: {hit_rate * 100:.2f}%")
+
+    # Plot hit rate vs feature number
+    plt.figure(figsize=(10, 6))
+    plt.plot(feature_numbers, hit_rates, marker='o', linestyle='-', color='b')
+    plt.xlabel('Number of Top Features')
+    plt.ylabel('Hit Rate (%)')
+    plt.title('Hit Rate vs. Number of Top Features')
+    plt.grid(True)
+    plt.show()
 
 
 if __name__ == "__main__":
