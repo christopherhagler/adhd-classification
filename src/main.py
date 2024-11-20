@@ -44,6 +44,12 @@ def average_power(time_series):
     return np.mean(pxx)
 
 
+def total_power(time_series):
+    time_series = time_series.flatten()
+    _, pxx = welch(time_series, fs=0.5, nperseg=55)
+    return np.sum(pxx)
+
+
 def peak_frequency(time_series):
     time_series = time_series.flatten()
     frequencies, pxx = welch(time_series, fs=0.5, nperseg=55)
@@ -56,16 +62,30 @@ def band_power(time_series, f_min, f_max):
     return np.sum(pxx[band])
 
 
-def spectral_entropy(time_series):
+def spectral_entropy(time_series, frequency_bins=None):
+    """
+        Compute spectral entropy over specified frequency bins.
+        Returns a vector of entropy values, one for each bin.
+        """
     time_series = time_series.flatten()
     frequencies, pxx = welch(time_series, fs=0.5, nperseg=55)
     total_power = np.sum(pxx)
     if total_power == 0:
-        return 0
+        return np.zeros(len(frequency_bins))
 
-    pxx_normalized = pxx / total_power
-    spectral_entropy_value = -np.sum(pxx_normalized * np.log2(pxx_normalized + 1e-12))
-    return spectral_entropy_value
+    entropy_values = []
+    for f_min, f_max in frequency_bins:
+        bin_mask = (frequencies >= f_min) & (frequencies < f_max)
+        pxx_bin = pxx[bin_mask]
+        bin_power = np.sum(pxx_bin)
+        if bin_power == 0:
+            entropy_values.append(0)
+            continue
+
+        pxx_normalized = pxx_bin / bin_power
+        entropy_bin = -np.sum(pxx_normalized * np.log2(pxx_normalized + 1e-12))
+        entropy_values.append(entropy_bin)
+    return np.array(entropy_values)
 
 
 def calculate_features(selection: int = PEAK_FREQUENCY):
@@ -78,11 +98,24 @@ def calculate_features(selection: int = PEAK_FREQUENCY):
             region_values = []
             for region in subject.T:
                 if selection == PEAK_FREQUENCY:
-                    region_values.append(peak_frequency(region))
+                    region_values.append(peak_frequency(time_series=region))
                 elif selection == AVERAGE_POWER:
-                    region_values.append(average_power(region))
+                    region_values.append(average_power(time_series=region))
+                elif selection == SPECTRAL_ENTROPY:
+                    region_values.extend(
+                        spectral_entropy(
+                            time_series=region,
+                            frequency_bins=[
+                                (0.01, 0.05),
+                                (0.05, 0.10),
+                                (0.10, 0.15),
+                                (0.15, 0.20),
+                                (0.20, 0.25)
+                            ]
+                        )
+                    )
                 else:
-                    region_values.append(spectral_entropy(region))
+                    region_values.append(total_power(time_series=region))
 
             group_psd_values.append(region_values)
         features[classification] = np.array(group_psd_values)
@@ -105,21 +138,21 @@ def main():
     features_class2 = features_class2[:, :min_features]
 
     # Define the range of feature numbers to test
-    feature_numbers = range(1, min_features + 1, 9)
+    feature_numbers = range(1, min_features + 1, 20)
     hit_rates = []
 
-    # for feature_number in feature_numbers:
-    hit_rate = multi_svm_cv_ttest(features_class0, features_class1, features_class2, 100)
-    hit_rates.append(hit_rate * 100)  # Store hit rate as a percentage
-    print(f"Feature number: {100}, Hit Rate: {hit_rate * 100:.2f}%")
+    for feature_number in feature_numbers:
+        hit_rate = multi_svm_cv_ttest(features_class0, features_class1, features_class2, feature_number)
+        hit_rates.append(hit_rate * 100)  # Store hit rate as a percentage
+        print(f"Feature number: {feature_number}, Hit Rate: {hit_rate * 100:.2f}%")
 
-    # plt.figure(figsize=(10, 6))
-    # plt.plot(feature_numbers, hit_rates, marker='o', linestyle='-', color='b')
-    # plt.xlabel('Number of Top Features')
-    # plt.ylabel('Hit Rate (%)')
-    # plt.title('Hit Rate vs. Number of Top Features (Spectral Entropy)')
-    # plt.grid(True)
-    # plt.show()
+    plt.figure(figsize=(10, 6))
+    plt.plot(feature_numbers, hit_rates, marker='o', linestyle='-', color='b')
+    plt.xlabel('Number of Top Features')
+    plt.ylabel('Hit Rate (%)')
+    plt.title('Hit Rate vs. Number of Top Features (Total Power)')
+    plt.grid(True)
+    plt.show()
 
 
 if __name__ == "__main__":
