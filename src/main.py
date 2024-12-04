@@ -12,6 +12,7 @@ PEAK_FREQUENCY = 0
 AVERAGE_POWER = 1
 BAND_POWER = 2
 SPECTRAL_ENTROPY = 3
+SPECTRAL_DENSITY = 4
 
 
 def load_data() -> dict[str, np.ndarray]:
@@ -29,15 +30,6 @@ def load_data() -> dict[str, np.ndarray]:
     }
 
 
-def bandpass_filter(data, lowcut, highcut, fs, order=4):
-    nyquist = 0.5 * fs
-    low = lowcut / nyquist
-    high = highcut / nyquist
-    b, a = butter(order, [low, high], btype='band')
-    y = filtfilt(b, a, data)
-    return y
-
-
 def average_power(time_series):
     time_series = time_series.flatten()
     _, pxx = welch(time_series, fs=0.5, nperseg=55)
@@ -46,18 +38,18 @@ def average_power(time_series):
 
 def total_power(time_series):
     time_series = time_series.flatten()
-    _, pxx = welch(time_series, fs=0.5, nperseg=55)
-    return np.sum(pxx)
+    _, pxx = welch(time_series)
+    return pxx
 
 
 def peak_frequency(time_series):
     time_series = time_series.flatten()
-    frequencies, pxx = welch(time_series, fs=0.5, nperseg=55)
+    frequencies, pxx = welch(time_series)
     return frequencies[np.argmax(pxx)]
 
 
 def band_power(time_series, f_min, f_max):
-    frequencies, pxx = welch(time_series, fs=0.5, nperseg=55)
+    frequencies, pxx = welch(time_series)
     band = (frequencies >= f_min) & (frequencies <= f_max)
     return np.sum(pxx[band])
 
@@ -68,7 +60,7 @@ def spectral_entropy(time_series, frequency_bins=None):
         Returns a vector of entropy values, one for each bin.
         """
     time_series = time_series.flatten()
-    frequencies, pxx = welch(time_series, fs=0.5, nperseg=55)
+    frequencies, pxx = welch(time_series)
     total_power = np.sum(pxx)
     if total_power == 0:
         return np.zeros(len(frequency_bins))
@@ -106,7 +98,7 @@ def calculate_features(selection: int = PEAK_FREQUENCY):
                         spectral_entropy(
                             time_series=region,
                             frequency_bins=[
-                                (0.01, 0.05),
+                                (0.00, 0.05),
                                 (0.05, 0.10),
                                 (0.10, 0.15),
                                 (0.15, 0.20),
@@ -115,7 +107,7 @@ def calculate_features(selection: int = PEAK_FREQUENCY):
                         )
                     )
                 else:
-                    region_values.append(total_power(time_series=region))
+                    region_values.extend(total_power(time_series=region))
 
             group_psd_values.append(region_values)
         features[classification] = np.array(group_psd_values)
@@ -138,13 +130,12 @@ def main():
     features_class2 = features_class2[:, :min_features]
 
     # Define the range of feature numbers to test
-    feature_numbers = range(1, min_features + 1, 20)
+    feature_numbers = range(1, min_features + 1, 100)
     hit_rates = []
 
-    for feature_number in feature_numbers:
-        hit_rate = multi_svm_cv_ttest(features_class0, features_class1, features_class2, feature_number)
-        hit_rates.append(hit_rate * 100)  # Store hit rate as a percentage
-        print(f"Feature number: {feature_number}, Hit Rate: {hit_rate * 100:.2f}%")
+    hit_rate = multi_svm_cv_ttest(features_class0, features_class1, features_class2, feature_numbers)
+    hit_rates.append(hit_rate * 100)  # Store hit rate as a percentage
+    print(f"Feature number: {feature_numbers}, Hit Rate: {hit_rate * 100:.2f}%")
 
     plt.figure(figsize=(10, 6))
     plt.plot(feature_numbers, hit_rates, marker='o', linestyle='-', color='b')
