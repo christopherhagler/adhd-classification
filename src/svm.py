@@ -3,6 +3,8 @@ from scipy.stats import f_oneway
 from sklearn.svm import SVC
 from sklearn.preprocessing import StandardScaler
 
+from constants import DEBUG
+
 
 def multi_svm_cv_ttest(group1, group2, group3, feature_number):
     # Combine all groups into one dataset
@@ -65,7 +67,8 @@ def multi_svm_cv_ttest(group1, group2, group3, feature_number):
         if predict_x[0] == test_Y:
             hit_rate += 1
 
-        print(f"Subject {sbj + 1}/{n_subs}, Feature number: {feature_number}")
+        if DEBUG:
+            print(f"Subject {sbj + 1}/{n_subs}, Feature number: {feature_number}")
 
     hit_rate = hit_rate / n_subs
     return hit_rate
